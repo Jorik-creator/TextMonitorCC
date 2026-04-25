@@ -1,0 +1,19 @@
+# OpenCode system files
+.opencode/
+.tmp/
+
+# Documentation and examples (not needed in repo)
+docs/
+examples/
+
+# Dependencies
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor backups
+*.swp
+*.swo
+*~
