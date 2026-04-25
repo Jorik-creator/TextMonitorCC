@@ -96,14 +96,20 @@ end
 
 -- Main server loop
 local function server_loop(monitor_states, assets, modem_side)
-  local next_update = 0
+  local BROADCAST_INTERVAL = 1
+  local next_broadcast = os.startTimer(BROADCAST_INTERVAL)
 
   while true do
     local event, p1, p2, p3 = os.pullEvent()
 
-    if event == "timer" and p1 == next_update then
+    if event == "timer" and p1 == next_broadcast then
+      -- Re-render on server monitors
       render_all(monitor_states, assets)
-      next_update = os.startTimer(UPDATE_INTERVAL)
+      -- Broadcast to all clients
+      if server.get_client_count() > 0 then
+        broadcast_render(assets)
+      end
+      next_broadcast = os.startTimer(BROADCAST_INTERVAL)
 
     elseif event == "rednet_message" then
       local sender_id, message = p1, p2
@@ -115,7 +121,7 @@ local function server_loop(monitor_states, assets, modem_side)
       if key == keys.enter then
         -- Force broadcast current content
         broadcast_render(assets)
-        print("Broadcast sent to " .. #clients .. " client(s)")
+        print("Broadcast sent to " .. server.get_client_count() .. " client(s)")
       end
     end
   end
