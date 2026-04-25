@@ -120,7 +120,7 @@ local function discover_servers()
   print()
 
   -- Broadcast discovery request
-  rednet.send(nil, { action = "discover" }, PROTOCOL)
+  rednet.broadcast({ action = "discover" }, PROTOCOL)
 
   -- Collect responses
   local servers = {}
