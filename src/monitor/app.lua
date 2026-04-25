@@ -1,23 +1,19 @@
-local manager = require("monitor.manager")
-local renderer = require("render.renderer")
+local selector = require("config.selector")
+local monitor_selector = require("monitor.selector")
 local preset_loader = require("presets.loader")
 local locale_loader = require("locales")
-local selector = require("config.selector")
-local modem = require("monitor.modem")
+local server_module = require("monitor.server")
+local client_module = require("monitor.client")
 
 local app = {}
 
-local UPDATE_INTERVAL = 1
-
 local function load_assets(config)
   local preset, preset_error = preset_loader.load(config.preset)
-
   if not preset then
     return nil, preset_error
   end
 
   local locale, locale_error = locale_loader.load(config.locale)
-
   if not locale then
     return nil, locale_error
   end
@@ -28,89 +24,86 @@ local function load_assets(config)
   }
 end
 
-local function render_all(monitor_states, assets)
-  for _, state in ipairs(monitor_states) do
-    local ok, err = renderer.render_home(state, assets)
-    if not ok then
-      return false, err
-    end
-  end
-  return true
-end
-
--- Main loop with timer and optional rednet events
-local function run_loop(monitor_states, assets, modem_side)
-  os.startTimer(UPDATE_INTERVAL)
-
-  while true do
-    local event, p1, p2 = os.pullEvent()
-
-    if event == "timer" then
-      render_all(monitor_states, assets)
-      os.startTimer(UPDATE_INTERVAL)
-
-    elseif event == "rednet_message" and modem_side then
-      local sender_id, message = p1, p2
-
-      if type(message) == "table" and message.action == "render" then
-        local new_assets = load_assets({
-          locale = message.locale or "en",
-          preset = message.preset or "default",
-        })
-
-        if new_assets then
-          render_all(monitor_states, new_assets)
-          assets = new_assets
-          rednet.send(sender_id, { status = "ok" }, "textmonitor")
-        end
-      end
-    end
-  end
-end
-
 function app.run(args)
-  local selection
+  -- Parse arguments or show selector
+  local config = {}
 
   if args and args[1] then
-    selection = {
-      locale = args[1],
-      preset = args[2] or "default",
-    }
+    -- Command line mode: mode [locale] [preset]
+    -- Or: server/client [locale] [preset]
+    config.mode = args[1]
+    config.locale = args[2] or "en"
+    config.preset = args[3] or "default"
   else
-    selection = selector.run()
+    -- Interactive mode: show all selectors
+    config.mode = selector.select_mode()
+    config.locale = selector.select_locale()
+    config.preset = selector.select_preset()
   end
 
-  local assets, assets_error = load_assets(selection)
+  -- Load assets
+  local assets, assets_error = load_assets({
+    locale = config.locale,
+    preset = config.preset,
+  })
 
   if not assets then
     return false, assets_error
   end
 
-  local config = {
-    scale = assets.preset.text_scale,
-    preset = selection.preset,
-    locale = selection.locale,
-  }
+  if config.mode == "server" then
+    return app.run_server(config, assets)
+  elseif config.mode == "client" then
+    return app.run_client(config, assets)
+  else
+    return false, "unknown mode: " .. tostring(config.mode)
+  end
+end
 
-  local monitor_states, monitor_error = manager.attach_all(config)
+function app.run_server(config, assets)
+  -- Server needs to select which monitors to use
+  print()
+  print("Select monitors for server display:")
+
+  local monitor_states, monitor_error = monitor_selector.select({
+    scale = assets.preset.text_scale,
+  })
 
   if not monitor_states then
     return false, monitor_error
   end
 
-  -- Try to open modem
-  local has_modem, modem_error = modem.open()
+  print()
+  print("Selected " .. #monitor_states .. " monitor(s) for server")
 
-  if has_modem then
-    print("Wireless server active (protocol: textmonitor)")
-    print("Computer ID: " .. os.getComputerID())
-    render_all(monitor_states, assets)
-    return run_loop(monitor_states, assets, has_modem)
+  return server_module.start(config, monitor_states)
+end
+
+function app.run_client(config, assets)
+  -- Client needs a single monitor
+  print()
+  print("Select monitor for client display:")
+
+  local monitor_states, monitor_error = monitor_selector.select({
+    scale = assets.preset.text_scale,
+  })
+
+  if not monitor_states then
+    return false, monitor_error
   end
 
-  -- No modem: run loop anyway
-  render_all(monitor_states, assets)
-  return run_loop(monitor_states, assets, nil)
+  if #monitor_states > 1 then
+    print("Client mode only supports one monitor. Using first selected.")
+  end
+
+  local monitor_state = monitor_states[1]
+
+  print()
+  print("Starting client mode...")
+  print("Computer ID: " .. os.getComputerID())
+  print()
+
+  return client_module.start(config, monitor_state)
 end
 
 return app

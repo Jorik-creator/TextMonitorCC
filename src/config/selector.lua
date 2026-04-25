@@ -1,9 +1,24 @@
 local selector = {}
 
+local MODES = {
+  { id = "server", name = "Server (broadcast to clients)" },
+  { id = "client", name = "Client (receive from server)" },
+}
+
+local LOCALES = {
+  { id = "en", name = "English" },
+  { id = "ru", name = "Russian" },
+}
+
+local PRESETS = {
+  { id = "default", name = "Default" },
+  { id = "minimal", name = "Minimal" },
+}
+
 local function print_options(title, options)
   print(title .. ":")
   for i, opt in ipairs(options) do
-    print("  " .. i .. ". " .. opt.id .. " (" .. opt.name .. ")")
+    print("  " .. i .. ". " .. opt.name)
   end
 end
 
@@ -42,22 +57,27 @@ function selector.run()
   print("=== TextMonitorCC ===")
   print()
 
-  local locales = {
-    { id = "en", name = "English" },
-    { id = "ru", name = "Russian" },
-  }
-  local presets = {
-    { id = "default", name = "Default" },
-    { id = "minimal", name = "Minimal" },
-  }
-
-  local locale = select_from("Select locale", locales)
-  local preset = select_from("Select preset", presets)
+  local mode = select_from("Select mode", MODES)
+  local locale = select_from("Select locale", LOCALES)
+  local preset = select_from("Select preset", PRESETS)
 
   return {
+    mode = mode,
     locale = locale,
     preset = preset,
   }
+end
+
+function selector.select_mode()
+  return select_from("Select mode", MODES)
+end
+
+function selector.select_locale()
+  return select_from("Select locale", LOCALES)
+end
+
+function selector.select_preset()
+  return select_from("Select preset", PRESETS)
 end
 
 return selector
