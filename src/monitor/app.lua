@@ -71,9 +71,9 @@ function app.run(args)
     end
     return app.run_server(config, assets)
   elseif config.mode == "client" then
-    -- Client doesn't need assets, just monitor
+    -- Client needs only monitor selection, no locale/preset
     config.scale = 1
-    return app.run_client(config, nil)
+    return app.run_client(config)
   else
     return false, "unknown mode: " .. tostring(config.mode)
   end
@@ -97,12 +97,11 @@ function app.run_server(config, assets)
   return server_module.start(config, monitor_states)
 end
 
-function app.run_client(config, assets)
+function app.run_client(config)
   print()
-  print("Select monitor for client display:")
 
   local monitor_states, monitor_error = monitor_selector.select({
-    scale = config.scale,
+    scale = config.scale or 1,
   })
 
   if not monitor_states then
@@ -110,22 +109,16 @@ function app.run_client(config, assets)
   end
 
   if #monitor_states > 1 then
-    print("Client mode only supports one monitor. Using first selected.")
+    print("Using first selected monitor.")
   end
 
   local monitor_state = monitor_states[1]
 
   print()
-  print("Starting client mode...")
   print("Computer ID: " .. os.getComputerID())
   print()
 
-  -- Allow passing server_id directly via config
-  local client_config = {
-    server_id = config.server_id,
-  }
-
-  return client_module.start(client_config, monitor_state)
+  return client_module.start(config, monitor_state)
 end
 
 return app

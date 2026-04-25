@@ -7,7 +7,87 @@ local server_id = nil
 local connected = false
 local monitor_state = nil
 
--- Connect to server
+-- ============================================
+-- Standalone addon parser (no external deps)
+-- ============================================
+local addon_time = {}
+function addon_time.get()
+  local h = os.time()
+  local hh = math.floor(h / 3600) % 24
+  local mm = math.floor(h / 60) % 60
+  local ss = math.floor(h) % 60
+  return string.format("%02d:%02d:%02d", hh, mm, ss)
+end
+
+local addon_uptime = {}
+function addon_uptime.get()
+  local s = os.clock()
+  local h = math.floor(s / 3600)
+  local m = math.floor((s % 3600) / 60)
+  local sec = math.floor(s) % 60
+  if h > 0 then
+    return string.format("%d:%02d:%02d", h, m, sec)
+  end
+  return string.format("%d:%02d", m, sec)
+end
+
+local addon_timer = {}
+function addon_timer.create(param)
+  local function parse_duration(p)
+    if not p or p == "" then return 60 end
+    local n = tonumber(p)
+    if n then return n end
+    local m = tonumber(p:match("(%d+)m") or "0")
+    local sec = tonumber(p:match("(%d+)s") or "0")
+    return m * 60 + sec
+  end
+  local function format_time(sec)
+    local h = math.floor(sec / 3600)
+    local m = math.floor((sec % 3600) / 60)
+    local s = math.floor(sec) % 60
+    if h > 0 then
+      return string.format("%d:%02d:%02d", h, m, s)
+    end
+    return string.format("%d:%02d", m, s)
+  end
+  local duration = parse_duration(param)
+  return function(_)
+    local elapsed = os.clock()
+    local remaining = duration - (elapsed % duration)
+    return format_time(remaining)
+  end
+end
+
+-- Registry
+local addon_registry = {
+  time = addon_time,
+  timer = addon_timer,
+  uptime = addon_uptime,
+}
+
+-- Resolve addons in text
+local function resolve_addons(text)
+  if type(text) ~= "string" then
+    return text or ""
+  end
+  return (text:gsub("%%(%w+):?([^%%]*)%%", function(name, param)
+    local addon = addon_registry[name]
+    if not addon then
+      return "%" .. name .. (param ~= "" and ":" .. param or "") .. "%"
+    end
+    if addon.create then
+      return addon.create(param)()
+    end
+    if addon.get then
+      return addon.get()
+    end
+    return "%" .. name .. (param ~= "" and ":" .. param or "") .. "%"
+  end))
+end
+
+-- ============================================
+-- Connection
+-- ============================================
 local function connect_to_server(target_server_id)
   local modem = require("monitor.modem")
 
@@ -43,7 +123,6 @@ local function connect_to_server(target_server_id)
   end
 end
 
--- Discover servers on the network
 local function discover_servers()
   local modem = require("monitor.modem")
 
@@ -53,7 +132,6 @@ local function discover_servers()
   end
 
   print("Searching for servers...")
-  print()
 
   rednet.broadcast({ action = "discover" }, PROTOCOL)
 
@@ -89,21 +167,20 @@ local function discover_servers()
   return result
 end
 
--- Render received screen data directly to monitor
+-- ============================================
+-- Rendering
+-- ============================================
 local function render_screen(screen_data)
   local monitor = monitor_state.monitor
   local background = screen_data.background
 
-  -- Clear screen
   monitor.setBackgroundColor(background)
   monitor.clear()
 
-  -- Calculate body start position (center vertically)
   local width, height = monitor.getSize()
   local body_lines = screen_data.body and screen_data.body.lines or {}
   local line_count = #body_lines
 
-  -- Footer handling
   local footer_lines = {}
   local footer_height = 0
   if screen_data.footer and screen_data.footer.lines then
@@ -111,48 +188,49 @@ local function render_screen(screen_data)
     footer_height = #footer_lines
   end
 
-  -- Body position
   local body_height = height - footer_height
   local start_y = math.max(1, math.floor(body_height / 2) - math.floor(line_count / 2) + 1)
 
-  -- Draw body lines
+  -- Draw body with resolved addons
   for i, line in ipairs(body_lines) do
     local y = start_y + i - 1
     if y > 0 and y <= body_height then
+      local text = resolve_addons(line.text)
       local x = 1
       if line.align == "center" then
-        x = math.max(1, math.floor((width - #line.text) / 2) + 1)
+        x = math.max(1, math.floor((width - #text) / 2) + 1)
       elseif line.align == "right" then
-        x = math.max(1, width - #line.text + 1)
+        x = math.max(1, width - #text + 1)
       end
       monitor.setCursorPos(x, y)
       monitor.setTextColor(line.color)
-      monitor.setBackgroundColor(background)
-      monitor.write(line.text)
+      monitor.write(text)
     end
   end
 
-  -- Draw footer
+  -- Draw footer with resolved addons
   if footer_height > 0 then
     local footer_y = height - footer_height + 1
     local footer_data = screen_data.footer
     for i, line_text in ipairs(footer_lines) do
+      local text = resolve_addons(line_text)
       local y = footer_y + i - 1
       local x = 1
       if footer_data.align == "center" then
-        x = math.max(1, math.floor((width - #line_text) / 2) + 1)
+        x = math.max(1, math.floor((width - #text) / 2) + 1)
       elseif footer_data.align == "right" then
-        x = math.max(1, width - #line_text + 1)
+        x = math.max(1, width - #text + 1)
       end
       monitor.setCursorPos(x, y)
       monitor.setTextColor(footer_data.color)
-      monitor.setBackgroundColor(background)
-      monitor.write(line_text)
+      monitor.write(text)
     end
   end
 end
 
--- Main client loop
+-- ============================================
+-- Main loop
+-- ============================================
 local function client_loop()
   while connected do
     local event, p1, p2 = os.pullEvent()
@@ -168,18 +246,21 @@ local function client_loop()
           print("Disconnected by server")
 
         elseif message.action == "status" then
-          print("Server status: " .. message.client_count .. " client(s)")
+          print("Server: " .. message.client_count .. " client(s)")
         end
       end
     end
   end
 end
 
--- Start client mode
+-- ============================================
+-- Entry point
+-- ============================================
 function client.start(config, target_monitor_state)
   monitor_state = target_monitor_state
 
-  if config.server_id then
+  -- Connect with optional server_id
+  if config and config.server_id then
     local ok, err = connect_to_server(config.server_id)
     if not ok then
       return false, err
@@ -188,18 +269,18 @@ function client.start(config, target_monitor_state)
     return true
   end
 
+  -- Discover servers
   local servers, discover_error = discover_servers()
-
   if not servers then
     return false, discover_error
   end
 
   if #servers == 0 then
-    return false, "no servers found on network"
+    return false, "no servers found"
   end
 
   if #servers == 1 then
-    print("Single server found: " .. servers[1].id)
+    print("Server found: " .. servers[1].id)
     local ok, err = connect_to_server(servers[1].id)
     if not ok then
       return false, err
@@ -208,41 +289,26 @@ function client.start(config, target_monitor_state)
     return true
   end
 
-  print("Found servers:")
-  print()
-  for i, server in ipairs(servers) do
-    print("  " .. i .. ". Server " .. server.id .. " (" .. server.client_count .. " clients)")
+  -- Multiple servers - select
+  print("Servers found:")
+  for i, s in ipairs(servers) do
+    print("  " .. i .. ". ID " .. s.id .. " (" .. s.client_count .. " clients)")
   end
   print()
 
-  write("Enter server ID or number: ")
+  write("> ")
   local input = read()
-  local selected_id = tonumber(input)
-
-  if not selected_id then
-    local num = tonumber(input)
-    if num and num >= 1 and num <= #servers then
-      selected_id = servers[num].id
-    else
-      return false, "invalid selection"
+  local num = tonumber(input)
+  if num and num >= 1 and num <= #servers then
+    local ok, err = connect_to_server(servers[num].id)
+    if not ok then
+      return false, err
     end
+    client_loop()
+    return true
   end
 
-  local ok, err = connect_to_server(selected_id)
-  if not ok then
-    return false, err
-  end
-
-  client_loop()
-  return true
-end
-
-function client.is_connected()
-  return connected
-end
-
-function client.get_server_id()
-  return server_id
+  return false, "invalid selection"
 end
 
 return client

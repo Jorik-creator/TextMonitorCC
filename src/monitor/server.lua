@@ -1,7 +1,6 @@
 local renderer = require("render.renderer")
 local preset_loader = require("presets.loader")
 local locale_loader = require("locales")
-local addons = require("addons")
 
 local server = {}
 
@@ -28,29 +27,16 @@ local function load_assets(config)
   }
 end
 
--- Build screen data for transmission to clients
+-- Build screen data for transmission to clients (raw text with placeholders)
 local function build_screen_data(monitor_state, assets)
   local tokens = assets.preset.tokens
   local strings = assets.locale.strings.home
-  local transform = assets.locale.text_transform
 
-  -- Resolve text with addons
-  local function resolve(text)
-    if type(text) ~= "string" then
-      return text or ""
-    end
-    text = addons.replace(text)
-    if type(transform) == "function" then
-      text = transform(text)
-    end
-    return text
-  end
-
-  -- Build body lines
+  -- Build body lines with RAW text (no addon processing)
   local body_lines = {}
   local home = assets.preset.home
   for i, line_config in ipairs(home.lines) do
-    local text = resolve(strings[line_config.text_key])
+    local text = strings[line_config.text_key] or ""
     local text_lines = {}
     for line in text:gmatch("[^\n]+") do
       table.insert(text_lines, line)
@@ -69,7 +55,7 @@ local function build_screen_data(monitor_state, assets)
   local footer_data = nil
   if home.footer_enabled and home.footer then
     local footer_lines = {}
-    local footer_text = resolve(strings[home.footer.text_key])
+    local footer_text = strings[home.footer.text_key] or ""
     for line in footer_text:gmatch("[^\n]+") do
       table.insert(footer_lines, line)
     end
