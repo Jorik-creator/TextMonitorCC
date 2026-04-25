@@ -9,53 +9,45 @@ src/
 ├── main.lua          → entrypoint
 ├── addons/          → %addon% placeholders
 │   ├── init.lua     → replace engine
-│   ├── time.lua    → %time% current time
-│   ├── timer.lua   → %timer:X% countdown
-│   └── uptime.lua  → %uptime% computer uptime
-├── monitor/         → discovery, app, manager, modem (rednet server)
-├── render/         → renderer, screen, layout
+│   ├── time.lua     → %time% current time
+│   ├── timer.lua    → %timer:X% countdown
+│   └── uptime.lua   → %uptime% computer uptime
+├── monitor/         → app, discovery, selector, manager, server, client, modem
+├── render/          → renderer, screen, layout
 ├── presets/         → loader, default, minimal (tokens + template)
-└── locales/        → loader, en, ru, alphabet/ru
+├── locales/         → loader, en, ru, alphabet/ru
+└── config/          → selector (interactive mode picker)
 ```
 
 ## usage
 
 ```lua
+-- interactive: pick mode, locale and preset via menu
 shell.run("src/main.lua")
-shell.run("src/main.lua", "en", "default")
-shell.run("src/main.lua", "ru", "minimal")
+
+-- server: display text on attached monitors, broadcast to clients
+shell.run("src/main.lua", "server", "en", "default")
+shell.run("src/main.lua", "server", "ru", "minimal")
+
+-- client: receive and display data from a server computer
+shell.run("src/main.lua", "client", 42)
 ```
 
-## addons
+`locale` defaults to `en`, `preset` defaults to `default` if omitted.
 
-Placeholders in locale strings get replaced on render:
+## server / client
 
-| Placeholder | Output | Example |
-|-------------|--------|----------|
-| `%time%` | Current time (HH:MM) | `14:30` |
-| `%timer:X%` | Countdown from X (seconds) | `%timer:300%` → `4:59` |
-| `%uptime%` | Computer uptime (H:MM:SS or M:SS) | `1:23:45` or `5:02` |
+The server renders text on its own monitors and broadcasts the screen data to
+all connected clients every second. Addons (`%time%`, `%uptime%`, etc.) are
+resolved server-side — all displays stay in sync.
 
-Timer accepts: seconds (`300`), minutes (`5m`), or both (`2m30s`).
-
-Example locale strings:
-```lua
-strings = {
-  footer = "Started: %uptime% | Time: %time%",
-  timer_line = "%timer:300% remaining",
-}
-```
-
-## rednet server / client
-
-When a wireless modem is present, the server broadcasts rendered screen data to
-connected clients every second. Clients resolve addons server-side — all monitors
-stay in sync.
+Clients pick one monitor and receive render data over rednet. No locale or
+preset needed on the client side.
 
 **Protocol:** `textmonitor`  
 **Server ID:** `os.getComputerID()`
 
-Supported actions (sent to server):
+Client actions sent to server:
 
 | Action | Description |
 |--------|-------------|
@@ -67,34 +59,54 @@ Supported actions (sent to server):
 Server broadcasts `{ action = "render", screen = { ... } }` to all connected
 clients on every update tick (1 s) and on manual Enter press.
 
+## addons
+
+Placeholders in locale strings get replaced on every render:
+
+| Placeholder | Output | Example |
+|-------------|--------|---------|
+| `%time%` | Current time (H:MM) | `14:30` |
+| `%timer:X%` | Countdown from X | `%timer:300%` → `4:59` |
+| `%uptime%` | Computer uptime | `1:23:45` or `5:02` |
+
+Timer accepts: seconds (`300`), minutes (`5m`), or both (`2m30s`).
+
+Example locale strings:
+```lua
+strings = {
+  footer = "Started: %uptime% | Time: %time%",
+  timer_line = "%timer:300% remaining",
+}
+```
+
 ## preset structure
 
 ```lua
 preset = {
   tokens = {
     background = colors.black,
-    text = colors.white,
-    title = colors.cyan,
-    muted = colors.lightGray,
-    accent = colors.magenta,
-    border = colors.gray,
-    success = colors.lime,
-    warning = colors.yellow,
-    error = colors.red,
+    text       = colors.white,
+    title      = colors.cyan,
+    muted      = colors.lightGray,
+    accent     = colors.magenta,
+    border     = colors.gray,
+    success    = colors.lime,
+    warning    = colors.yellow,
+    error      = colors.red,
   },
   text_scale = 1.0,
   home = {
     lines = {
       { text_key = "title", align = "center", color_token = "title" },
-      { text_key = "body", align = "center", color_token = "text" },
+      { text_key = "body",  align = "center", color_token = "text"  },
     },
     footer = {
-      text_key = "footer",
-      align = "left",
+      text_key    = "footer",
+      align       = "left",
       color_token = "muted",
     },
     footer_enabled = true,
-    footer_height = 1,
+    footer_height  = 1,
   },
 }
 ```
@@ -105,11 +117,16 @@ preset = {
 -- src/addons/myaddon.lua
 local myaddon = {}
 
+-- parametric addon (%myaddon:param%)
 function myaddon.create(param)
   return function(_)
-    -- param = everything after colon (e.g. "5m" from "%myaddon:5m%")
-    return "some value"
+    return "computed: " .. param
   end
+end
+
+-- or simple addon (%myaddon%)
+function myaddon.get()
+  return "static value"
 end
 
 return myaddon
@@ -124,6 +141,6 @@ registry.myaddon = myaddon
 ## development
 
 - Modules: single responsibility
-- Naming: lowercase with dots
-- APIs: require, return table with functions
+- Naming: lowercase with dots (`require("monitor.app")`)
+- APIs: `require`, return table with functions
 - No external dependencies
