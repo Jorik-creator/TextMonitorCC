@@ -12,10 +12,11 @@ local monitor_state = nil
 -- ============================================
 local addon_time = {}
 function addon_time.get()
+  -- os.time() returns hours as decimal (e.g., 14.5 = 14:30)
   local h = os.time()
-  local hh = math.floor(h / 3600) % 24
-  local mm = math.floor(h / 60) % 60
-  local ss = math.floor(h) % 60
+  local hh = math.floor(h) % 24
+  local mm = math.floor((h % 1) * 60)
+  local ss = math.floor(((h % 1) * 60 % 1) * 60)
   return string.format("%02d:%02d:%02d", hh, mm, ss)
 end
 
@@ -70,7 +71,7 @@ local function resolve_addons(text)
   if type(text) ~= "string" then
     return text or ""
   end
-  return (text:gsub("%%(%w+):?([^%%]*)%%", function(name, param)
+  local result = (text:gsub("%%(%w+):?([^%%]*)%%", function(name, param)
     local addon = addon_registry[name]
     if not addon then
       return "%" .. name .. (param ~= "" and ":" .. param or "") .. "%"
@@ -83,6 +84,7 @@ local function resolve_addons(text)
     end
     return "%" .. name .. (param ~= "" and ":" .. param or "") .. "%"
   end))
+  return result
 end
 
 -- ============================================

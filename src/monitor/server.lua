@@ -31,12 +31,17 @@ end
 local function build_screen_data(monitor_state, assets)
   local tokens = assets.preset.tokens
   local strings = assets.locale.strings.home
+  local transform = assets.locale.text_transform
 
-  -- Build body lines with RAW text (no addon processing)
+  -- Build body lines with RAW text (no addon processing, but WITH locale transform)
   local body_lines = {}
   local home = assets.preset.home
   for i, line_config in ipairs(home.lines) do
     local text = strings[line_config.text_key] or ""
+    -- Apply locale transform (e.g. cyrillic replacement)
+    if type(transform) == "function" then
+      text = transform(text)
+    end
     local text_lines = {}
     for line in text:gmatch("[^\n]+") do
       table.insert(text_lines, line)
@@ -56,6 +61,9 @@ local function build_screen_data(monitor_state, assets)
   if home.footer_enabled and home.footer then
     local footer_lines = {}
     local footer_text = strings[home.footer.text_key] or ""
+    if type(transform) == "function" then
+      footer_text = transform(footer_text)
+    end
     for line in footer_text:gmatch("[^\n]+") do
       table.insert(footer_lines, line)
     end
