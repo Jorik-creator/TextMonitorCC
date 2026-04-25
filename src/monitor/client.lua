@@ -12,13 +12,13 @@ local monitor_state = nil
 -- ============================================
 local addon_time = {}
 function addon_time.get()
-  -- os.time() returns hours as decimal (14.5 = 14:30:00)
-  local h = os.time()
-  local total_seconds = math.floor(h * 3600 + 0.5) % 86400
-  local hh = math.floor(total_seconds / 3600)
-  local mm = math.floor((total_seconds % 3600) / 60)
-  local ss = total_seconds % 60
-  return string.format("%02d:%02d:%02d", hh, mm, ss)
+  -- Minecraft time: 0 = sunrise, 6000 = noon, 12000 = sunset, 18000 = midnight
+  -- 24000 ticks per day
+  local t = os.time()
+  local mtime = math.floor(t / 100) -- Convert to Minecraft "minutes" (0-240)
+  local hh = math.floor(mtime / 60) -- Minecraft hours (0-4 per day, then repeats)
+  local mm = mtime % 60             -- Minutes
+  return string.format("%d:%02d", hh, mm)
 end
 
 local addon_uptime = {}
