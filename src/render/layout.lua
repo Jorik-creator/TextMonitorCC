@@ -8,11 +8,31 @@ local function clamp(value, minimum)
   return value
 end
 
-function layout.center_x(width, text)
+function layout.align_x(width, text, alignment)
   local text_width = #text
-  local start_x = math.floor((width - text_width) / 2) + 1
 
-  return clamp(start_x, 1)
+  if alignment == "right" then
+    return clamp(width - text_width + 1, 1)
+  elseif alignment == "center" then
+    return clamp(math.floor((width - text_width) / 2) + 1, 1)
+  else
+    return 1
+  end
+end
+
+function layout.center_x(width, text)
+  return layout.align_x(width, text, "center")
+end
+
+function layout.home_line_rows(height, line_count)
+  local start_y = math.max(1, math.floor(height / 2) - math.floor(line_count / 2) + 1)
+  local rows = {}
+
+  for i = 1, line_count do
+    rows[i] = start_y + i - 1
+  end
+
+  return rows
 end
 
 function layout.home_rows(height)

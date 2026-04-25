@@ -6,15 +6,6 @@ local locale_loader = require("locales")
 
 local app = {}
 
-local function create_config()
-  return {
-    scale = 1,
-    theme = "default",
-    template = "basic",
-    locale = "en",
-  }
-end
-
 local function load_assets(config)
   local theme, theme_error = theme_loader.load(config.theme)
 
@@ -42,17 +33,27 @@ local function load_assets(config)
 end
 
 function app.run()
-  local config = create_config()
+  local assets, assets_error = load_assets({
+    theme = "default",
+    template = "basic",
+    locale = "en",
+  })
+
+  if not assets then
+    return false, assets_error
+  end
+
+  local config = {
+    scale = assets.theme.text_scale,
+    theme = "default",
+    template = "basic",
+    locale = "en",
+  }
+
   local monitor_state, monitor_error = manager.attach(config)
 
   if not monitor_state then
     return false, monitor_error
-  end
-
-  local assets, assets_error = load_assets(config)
-
-  if not assets then
-    return false, assets_error
   end
 
   return renderer.render_home(monitor_state, assets)
