@@ -13,8 +13,8 @@ local monitor_state = nil
 local addon_time = {}
 function addon_time.get()
   local h = os.time()
-  local hh = math.floor(h / 3600) % 24
-  local mm = math.floor(h / 60) % 60
+  local hh = math.floor(h) % 24
+  local mm = math.floor((h % 1) * 60)
   return string.format("%02d:%02d", hh, mm)
 end
 

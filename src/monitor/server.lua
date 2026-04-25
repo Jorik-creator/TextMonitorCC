@@ -1,6 +1,7 @@
 local renderer = require("render.renderer")
 local preset_loader = require("presets.loader")
 local locale_loader = require("locales")
+local addons = require("addons")
 
 local server = {}
 
@@ -33,11 +34,13 @@ local function build_screen_data(monitor_state, assets)
   local strings = assets.locale.strings.home
   local transform = assets.locale.text_transform
 
-  -- Build body lines with RAW text (no addon processing, but WITH locale transform)
+  -- Build body lines with resolved addons and locale transform
   local body_lines = {}
   local home = assets.preset.home
   for i, line_config in ipairs(home.lines) do
     local text = strings[line_config.text_key] or ""
+    -- Resolve addon placeholders (server-side, so clients stay in sync)
+    text = addons.replace(text)
     -- Apply locale transform (e.g. cyrillic replacement)
     if type(transform) == "function" then
       text = transform(text)
@@ -61,6 +64,8 @@ local function build_screen_data(monitor_state, assets)
   if home.footer_enabled and home.footer then
     local footer_lines = {}
     local footer_text = strings[home.footer.text_key] or ""
+    -- Resolve addon placeholders (server-side, so clients stay in sync)
+    footer_text = addons.replace(footer_text)
     if type(transform) == "function" then
       footer_text = transform(footer_text)
     end

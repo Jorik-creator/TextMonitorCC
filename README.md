@@ -32,9 +32,9 @@ Placeholders in locale strings get replaced on render:
 
 | Placeholder | Output | Example |
 |-------------|--------|----------|
-| `%time%` | Current time (HH:MM:SS) | `14:30:45` |
+| `%time%` | Current time (HH:MM) | `14:30` |
 | `%timer:X%` | Countdown from X (seconds) | `%timer:300%` → `4:59` |
-| `%uptime%` | Computer uptime (H:MM:SS) | `1:23:45` |
+| `%uptime%` | Computer uptime (H:MM:SS or M:SS) | `1:23:45` or `5:02` |
 
 Timer accepts: seconds (`300`), minutes (`5m`), or both (`2m30s`).
 
@@ -46,20 +46,26 @@ strings = {
 }
 ```
 
-## rednet server
+## rednet server / client
 
-When wireless modem present, accepts commands:
+When a wireless modem is present, the server broadcasts rendered screen data to
+connected clients every second. Clients resolve addons server-side — all monitors
+stay in sync.
 
-```lua
-rednet.send(computer_id, {
-  action = "render",
-  locale = "en",
-  preset = "default",
-}, "textmonitor")
-```
+**Protocol:** `textmonitor`  
+**Server ID:** `os.getComputerID()`
 
-Server IP: `os.getComputerID()`
-Protocol: `textmonitor`
+Supported actions (sent to server):
+
+| Action | Description |
+|--------|-------------|
+| `discover` | Find available servers; server replies with `status` |
+| `connect` | Register as a client; server replies with `ack` |
+| `disconnect` | Unregister from server |
+| `status` | Request current client count |
+
+Server broadcasts `{ action = "render", screen = { ... } }` to all connected
+clients on every update tick (1 s) and on manual Enter press.
 
 ## preset structure
 
