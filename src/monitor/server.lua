@@ -1,6 +1,7 @@
 local renderer = require("render.renderer")
 local preset_loader = require("presets.loader")
 local locale_loader = require("locales")
+local addons = require("addons")
 
 local server = {}
 
@@ -27,6 +28,67 @@ local function load_assets(config)
   }
 end
 
+-- Build screen data for transmission to clients
+local function build_screen_data(monitor_state, assets)
+  local tokens = assets.preset.tokens
+  local strings = assets.locale.strings.home
+  local transform = assets.locale.text_transform
+
+  -- Resolve text with addons
+  local function resolve(text)
+    if type(text) ~= "string" then
+      return text or ""
+    end
+    text = addons.replace(text)
+    if type(transform) == "function" then
+      text = transform(text)
+    end
+    return text
+  end
+
+  -- Build body lines
+  local body_lines = {}
+  local home = assets.preset.home
+  for i, line_config in ipairs(home.lines) do
+    local text = resolve(strings[line_config.text_key])
+    local text_lines = {}
+    for line in text:gmatch("[^\n]+") do
+      table.insert(text_lines, line)
+    end
+    for j, line_text in ipairs(text_lines) do
+      table.insert(body_lines, {
+        y = j,
+        text = line_text,
+        align = line_config.align,
+        color = tokens[line_config.color_token],
+      })
+    end
+  end
+
+  -- Build footer
+  local footer_data = nil
+  if home.footer_enabled and home.footer then
+    local footer_lines = {}
+    local footer_text = resolve(strings[home.footer.text_key])
+    for line in footer_text:gmatch("[^\n]+") do
+      table.insert(footer_lines, line)
+    end
+    footer_data = {
+      align = home.footer.align,
+      color = tokens[home.footer.color_token],
+      lines = footer_lines,
+    }
+  end
+
+  return {
+    background = tokens.background,
+    body = {
+      lines = body_lines,
+    },
+    footer = footer_data,
+  }
+end
+
 local function render_all(monitor_states, assets)
   for _, state in ipairs(monitor_states) do
     local ok, err = renderer.render_home(state, assets)
@@ -44,19 +106,13 @@ local function broadcast(message)
   end
 end
 
--- Broadcast render command to all clients
-local function broadcast_render(assets, custom_content)
-  local message = {
+-- Broadcast render command to all clients with screen data
+local function broadcast_render(monitor_states, assets)
+  local screen_data = build_screen_data(monitor_states[1], assets)
+  broadcast({
     action = "render",
-    locale = assets.locale.code,
-    preset = assets.preset and assets.preset._name or "default",
-  }
-
-  if custom_content then
-    message.content = custom_content
-  end
-
-  broadcast(message)
+    screen = screen_data,
+  })
 end
 
 -- Handle incoming rednet messages
@@ -66,7 +122,6 @@ local function handle_message(sender_id, message)
   end
 
   if message.action == "discover" then
-    -- Respond to discovery request
     rednet.send(sender_id, {
       action = "status",
       server_id = os.getComputerID(),
@@ -74,18 +129,15 @@ local function handle_message(sender_id, message)
     }, PROTOCOL)
 
   elseif message.action == "connect" then
-    -- New client connecting
     clients[sender_id] = true
     print("Client connected: " .. sender_id)
     rednet.send(sender_id, { action = "ack", status = "ok" }, PROTOCOL)
 
   elseif message.action == "disconnect" then
-    -- Client disconnecting
     clients[sender_id] = nil
     print("Client disconnected: " .. sender_id)
 
   elseif message.action == "status" then
-    -- Status request
     rednet.send(sender_id, {
       action = "status",
       server_id = os.getComputerID(),
@@ -96,31 +148,26 @@ end
 
 -- Main server loop
 local function server_loop(monitor_states, assets, modem_side)
-  local BROADCAST_INTERVAL = 1
-  local next_broadcast = os.startTimer(BROADCAST_INTERVAL)
+  local next_update = os.startTimer(UPDATE_INTERVAL)
 
   while true do
     local event, p1, p2, p3 = os.pullEvent()
 
-    if event == "timer" and p1 == next_broadcast then
-      -- Re-render on server monitors
+    if event == "timer" and p1 == next_update then
       render_all(monitor_states, assets)
-      -- Broadcast to all clients
       if server.get_client_count() > 0 then
-        broadcast_render(assets)
+        broadcast_render(monitor_states, assets)
       end
-      next_broadcast = os.startTimer(BROADCAST_INTERVAL)
+      next_update = os.startTimer(UPDATE_INTERVAL)
 
     elseif event == "rednet_message" then
       local sender_id, message = p1, p2
       handle_message(sender_id, message)
 
     elseif event == "key" then
-      -- Handle key press for server commands
       local key = p1
       if key == keys.enter then
-        -- Force broadcast current content
-        broadcast_render(assets)
+        broadcast_render(monitor_states, assets)
         print("Broadcast sent to " .. server.get_client_count() .. " client(s)")
       end
     end
@@ -131,13 +178,11 @@ end
 function server.start(config, monitor_states)
   local modem = require("monitor.modem")
 
-  -- Open modem
   local modem_side, modem_error = modem.open()
   if not modem_side then
     return false, modem_error
   end
 
-  -- Load initial assets
   local assets, assets_error = load_assets({
     locale = config.locale,
     preset = config.preset,
@@ -155,32 +200,19 @@ function server.start(config, monitor_states)
   print("Commands: Enter = broadcast | Ctrl+C = exit")
   print()
 
-  -- Initial render
   render_all(monitor_states, assets)
-
-  -- Start server loop
   return server_loop(monitor_states, assets, modem_side)
 end
 
--- Update assets and broadcast to clients
 function server.update(assets, monitor_states)
   if not assets then
     return false, "no assets"
   end
-
   render_all(monitor_states, assets)
-  broadcast_render(assets)
+  broadcast_render(monitor_states, assets)
   return true
 end
 
--- Send custom content to all clients
-function server.broadcast_content(assets, content, monitor_states)
-  render_all(monitor_states, assets)
-  broadcast_render(assets, content)
-  return true
-end
-
--- Get connected client count
 function server.get_client_count()
   local count = 0
   for _ in pairs(clients) do

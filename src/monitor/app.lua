@@ -25,43 +25,61 @@ local function load_assets(config)
 end
 
 function app.run(args)
-  -- Parse arguments or show selector
   local config = {}
 
   if args and args[1] then
-    -- Command line mode: mode [locale] [preset]
-    -- Or: server/client [locale] [preset]
+    -- Command line mode: mode [server_id] [locale] [preset]
+    -- Or: mode [locale] [preset] for server
     config.mode = args[1]
     config.locale = args[2] or "en"
     config.preset = args[3] or "default"
+
+    -- For client mode, args[2] can be server_id
+    if config.mode == "client" and args[2] and not string.find(args[2], "^%d+$") then
+      -- If args[2] is not a number, treat as locale
+      config.locale = args[2] or "en"
+      config.preset = args[3] or "default"
+      config.server_id = nil
+    else
+      config.server_id = nil
+    end
+
+    -- Check if second arg is a number (server_id)
+    if config.mode == "client" and args[2] then
+      local sid = tonumber(args[2])
+      if sid then
+        config.server_id = sid
+        config.locale = args[3] or "en"
+        config.preset = args[4] or "default"
+      end
+    end
   else
-    -- Interactive mode: show all selectors
+    -- Interactive mode
     config.mode = selector.select_mode()
     config.locale = selector.select_locale()
     config.preset = selector.select_preset()
   end
 
-  -- Load assets
-  local assets, assets_error = load_assets({
-    locale = config.locale,
-    preset = config.preset,
-  })
-
-  if not assets then
-    return false, assets_error
-  end
-
   if config.mode == "server" then
+    -- Server needs assets for rendering
+    local assets, assets_error = load_assets({
+      locale = config.locale,
+      preset = config.preset,
+    })
+    if not assets then
+      return false, assets_error
+    end
     return app.run_server(config, assets)
   elseif config.mode == "client" then
-    return app.run_client(config, assets)
+    -- Client doesn't need assets, just monitor
+    config.scale = 1
+    return app.run_client(config, nil)
   else
     return false, "unknown mode: " .. tostring(config.mode)
   end
 end
 
 function app.run_server(config, assets)
-  -- Server needs to select which monitors to use
   print()
   print("Select monitors for server display:")
 
@@ -80,12 +98,11 @@ function app.run_server(config, assets)
 end
 
 function app.run_client(config, assets)
-  -- Client needs a single monitor
   print()
   print("Select monitor for client display:")
 
   local monitor_states, monitor_error = monitor_selector.select({
-    scale = assets.preset.text_scale,
+    scale = config.scale,
   })
 
   if not monitor_states then
@@ -103,7 +120,12 @@ function app.run_client(config, assets)
   print("Computer ID: " .. os.getComputerID())
   print()
 
-  return client_module.start(config, monitor_state)
+  -- Allow passing server_id directly via config
+  local client_config = {
+    server_id = config.server_id,
+  }
+
+  return client_module.start(client_config, monitor_state)
 end
 
 return app
