@@ -65,7 +65,15 @@ local function handle_message(sender_id, message)
     return
   end
 
-  if message.action == "connect" then
+  if message.action == "discover" then
+    -- Respond to discovery request
+    rednet.send(sender_id, {
+      action = "status",
+      server_id = os.getComputerID(),
+      client_count = server.get_client_count(),
+    }, PROTOCOL)
+
+  elseif message.action == "connect" then
     -- New client connecting
     clients[sender_id] = true
     print("Client connected: " .. sender_id)
@@ -81,7 +89,7 @@ local function handle_message(sender_id, message)
     rednet.send(sender_id, {
       action = "status",
       server_id = os.getComputerID(),
-      client_count = 0,
+      client_count = server.get_client_count(),
     }, PROTOCOL)
   end
 end
