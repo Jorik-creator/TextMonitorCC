@@ -66,4 +66,29 @@ function layout.home_regions(width, height, template)
   }
 end
 
+-- Split text by newline characters into an array of lines.
+-- Preserves empty lines between consecutive newlines.
+function layout.split_lines(text)
+  if type(text) ~= "string" then
+    return { tostring(text) }
+  end
+
+  local lines = {}
+  local start = 1
+
+  while true do
+    local pos = text:find("\n", start, true)
+
+    if not pos then
+      table.insert(lines, text:sub(start))
+      break
+    end
+
+    table.insert(lines, text:sub(start, pos - 1))
+    start = pos + 1
+  end
+
+  return lines
+end
+
 return layout

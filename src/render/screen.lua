@@ -1,15 +1,17 @@
 local layout = require("render.layout")
+local cyrillic = require("locales.alphabet.ru")
 
 local screen = {}
 
 local function draw_line(target, y, text, text_color, background_color, alignment)
+  local normalized_text = cyrillic.replace(text)
   local width = target.getSize()
-  local x = layout.align_x(width, text, alignment)
+  local x = layout.align_x(width, normalized_text, alignment)
 
   target.setCursorPos(x, y)
   target.setTextColor(text_color)
   target.setBackgroundColor(background_color)
-  target.write(text)
+  target.write(normalized_text)
 end
 
 function screen.clear(target, background_color)
@@ -32,9 +34,14 @@ end
 
 function screen.render_footer(target, footer)
   local _, height = target.getSize()
+  local line_count = #footer.lines
+  local start_y = math.max(1, height - line_count + 1)
 
   screen.clear(target, footer.background)
-  draw_line(target, height, footer.text, footer.color, footer.background, footer.align)
+
+  for i = 1, line_count do
+    draw_line(target, start_y + i - 1, footer.lines[i], footer.color, footer.background, footer.align)
+  end
 end
 
 return screen

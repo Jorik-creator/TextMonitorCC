@@ -1,22 +1,16 @@
 local manager = require("monitor.manager")
 local renderer = require("render.renderer")
-local theme_loader = require("themes.loader")
-local template_loader = require("templates.loader")
+local preset_loader = require("presets.loader")
 local locale_loader = require("locales")
+local selector = require("config.selector")
 
 local app = {}
 
 local function load_assets(config)
-  local theme, theme_error = theme_loader.load(config.theme)
+  local preset, preset_error = preset_loader.load(config.preset)
 
-  if not theme then
-    return nil, theme_error
-  end
-
-  local template, template_error = template_loader.load(config.template)
-
-  if not template then
-    return nil, template_error
+  if not preset then
+    return nil, preset_error
   end
 
   local locale, locale_error = locale_loader.load(config.locale)
@@ -26,28 +20,33 @@ local function load_assets(config)
   end
 
   return {
-    theme = theme,
-    template = template,
+    preset = preset,
     locale = locale,
   }
 end
 
-function app.run()
-  local assets, assets_error = load_assets({
-    theme = "default",
-    template = "basic",
-    locale = "en",
-  })
+function app.run(args)
+  local selection
+
+  if args and args[1] then
+    selection = {
+      locale = args[1] or "en",
+      preset = args[2] or "default",
+    }
+  else
+    selection = selector.run()
+  end
+
+  local assets, assets_error = load_assets(selection)
 
   if not assets then
     return false, assets_error
   end
 
   local config = {
-    scale = assets.theme.text_scale,
-    theme = "default",
-    template = "basic",
-    locale = "en",
+    scale = assets.preset.text_scale,
+    preset = selection.preset,
+    locale = selection.locale,
   }
 
   local monitor_state, monitor_error = manager.attach(config)
