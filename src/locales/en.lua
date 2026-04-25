@@ -5,7 +5,7 @@ local locale = {
     home = {
       title = "TextMonitorCC",
       body = "Starter screen ready for monitor content.",
-      footer = "Themes, templates, and more languages can plug in here.",
+      footer = "%uptime% | %time%",
     },
     status = {
       ready = "Ready",

@@ -53,7 +53,12 @@ function discovery.connect_all(config)
     return nil, error_message
   end
 
-  local monitors = { peripheral.find("monitor") }
+  local monitors = {}
+  for _, name in ipairs(peripheral.getNames()) do
+    if peripheral.getType(name) == "monitor" then
+      table.insert(monitors, peripheral.wrap(name))
+    end
+  end
 
   if #monitors == 0 then
     return nil, "no monitors found"

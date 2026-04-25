@@ -8,7 +8,7 @@ local locale = {
     home = {
       title = "TextMonitorCC",
       body = "Начальный экран готов к отображению.",
-      footer = "Темы, шаблоны и языки подключаются здесь.",
+      footer = "%uptime% | %time%",
     },
     status = {
       ready = "Готово",

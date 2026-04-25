@@ -1,5 +1,3 @@
-local registry = require("config.registry")
-
 local selector = {}
 
 local function print_options(title, options)
@@ -44,8 +42,17 @@ function selector.run()
   print("=== TextMonitorCC ===")
   print()
 
-  local locale = select_from("Select locale", registry.locales)
-  local preset = select_from("Select preset", registry.presets)
+  local locales = {
+    { id = "en", name = "English" },
+    { id = "ru", name = "Russian" },
+  }
+  local presets = {
+    { id = "default", name = "Default" },
+    { id = "minimal", name = "Minimal" },
+  }
+
+  local locale = select_from("Select locale", locales)
+  local preset = select_from("Select preset", presets)
 
   return {
     locale = locale,

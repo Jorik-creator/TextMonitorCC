@@ -1,5 +1,6 @@
 local layout = require("render.layout")
 local screen = require("render.screen")
+local addons = require("addons")
 
 local renderer = {}
 
@@ -19,9 +20,14 @@ local function validate_assets(assets)
   return assets
 end
 
-local function apply_transform(text, transform)
+-- Applies locale transform and addon replacements to text.
+local function resolve_text(text, transform)
+  if type(text) ~= "string" then
+    return text
+  end
+  text = addons.replace(text)
   if type(transform) == "function" then
-    return transform(text)
+    text = transform(text)
   end
   return text
 end
@@ -38,7 +44,7 @@ local function build_body_lines(template_home, strings, tokens, transform)
   local lines = {}
   for i = 1, #template_home.lines do
     local c = template_home.lines[i]
-    local text = apply_transform(strings[c.text_key], transform)
+    local text = resolve_text(strings[c.text_key], transform)
     local text_lines = layout.split_lines(text)
     for _, line_text in ipairs(text_lines) do
       table.insert(lines, { text = line_text, align = c.align, color = tokens[c.color_token] })
@@ -62,7 +68,7 @@ local function create_home_view_model(dimensions, assets)
 
   if home.footer_enabled and home.footer then
     local f = home.footer
-    local footer_text = apply_transform(strings[f.text_key], transform)
+    local footer_text = resolve_text(strings[f.text_key], transform)
     local footer_lines = layout.split_lines(footer_text)
     view_model.footer = {
       lines = footer_lines,
