@@ -19,6 +19,13 @@ local function validate_assets(assets)
   return assets
 end
 
+local function apply_transform(text, transform)
+  if type(transform) == "function" then
+    return transform(text)
+  end
+  return text
+end
+
 local function create_regions(target, dimensions, template)
   local r = layout.home_regions(dimensions.width, dimensions.height, template)
   return {
@@ -27,11 +34,11 @@ local function create_regions(target, dimensions, template)
   }
 end
 
-local function build_body_lines(template_home, strings, tokens)
+local function build_body_lines(template_home, strings, tokens, transform)
   local lines = {}
   for i = 1, #template_home.lines do
     local c = template_home.lines[i]
-    local text = strings[c.text_key]
+    local text = apply_transform(strings[c.text_key], transform)
     local text_lines = layout.split_lines(text)
     for _, line_text in ipairs(text_lines) do
       table.insert(lines, { text = line_text, align = c.align, color = tokens[c.color_token] })
@@ -44,15 +51,18 @@ local function create_home_view_model(dimensions, assets)
   local strings = assets.locale.strings.home
   local tokens = assets.preset.tokens
   local home = assets.preset.home
+  local transform = assets.locale.text_transform
+
   local view_model = {
     width = dimensions.width,
     height = dimensions.height,
     background = tokens.background,
-    body = { lines = build_body_lines(home, strings, tokens), background = tokens.background },
+    body = { lines = build_body_lines(home, strings, tokens, transform), background = tokens.background },
   }
+
   if home.footer_enabled and home.footer then
     local f = home.footer
-    local footer_text = strings[f.text_key]
+    local footer_text = apply_transform(strings[f.text_key], transform)
     local footer_lines = layout.split_lines(footer_text)
     view_model.footer = {
       lines = footer_lines,
@@ -61,6 +71,7 @@ local function create_home_view_model(dimensions, assets)
       background = tokens.background,
     }
   end
+
   return view_model
 end
 

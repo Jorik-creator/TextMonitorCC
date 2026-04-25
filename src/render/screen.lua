@@ -1,17 +1,16 @@
 local layout = require("render.layout")
-local cyrillic = require("locales.alphabet.ru")
 
 local screen = {}
 
+-- Text arrives pre-transformed by the locale pipeline; draw_line is locale-agnostic.
 local function draw_line(target, y, text, text_color, background_color, alignment)
-  local normalized_text = cyrillic.replace(text)
   local width = target.getSize()
-  local x = layout.align_x(width, normalized_text, alignment)
+  local x = layout.align_x(width, text, alignment)
 
   target.setCursorPos(x, y)
   target.setTextColor(text_color)
   target.setBackgroundColor(background_color)
-  target.write(normalized_text)
+  target.write(text)
 end
 
 function screen.clear(target, background_color)

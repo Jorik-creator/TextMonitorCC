@@ -46,4 +46,24 @@ function discovery.connect(config)
   return monitor
 end
 
+function discovery.connect_all(config)
+  local normalized, error_message = normalize_config(config)
+
+  if not normalized then
+    return nil, error_message
+  end
+
+  local monitors = { peripheral.find("monitor") }
+
+  if #monitors == 0 then
+    return nil, "no monitors found"
+  end
+
+  for _, monitor in ipairs(monitors) do
+    monitor.setTextScale(normalized.scale)
+  end
+
+  return monitors
+end
+
 return discovery

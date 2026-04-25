@@ -2,6 +2,7 @@ local registry = {}
 
 registry.locales = {
   { id = "en", name = "English" },
+  { id = "ru", name = "Russian" },
 }
 
 registry.presets = {

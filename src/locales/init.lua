@@ -23,6 +23,10 @@ local function is_valid_locale(locale)
     return false
   end
 
+  if locale.text_transform ~= nil and type(locale.text_transform) ~= "function" then
+    return false
+  end
+
   return has_string_fields(locale.strings.home, { "title", "body", "footer" })
     and has_string_fields(locale.strings.status, { "ready", "waiting_for_monitor" })
     and has_string_fields(locale.strings.errors, {

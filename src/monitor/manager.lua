@@ -40,6 +40,27 @@ function manager.attach(config)
   return build_state(monitor, normalized)
 end
 
+function manager.attach_all(config)
+  local normalized, config_error = normalize_config(config)
+
+  if not normalized then
+    return nil, config_error
+  end
+
+  local monitors, monitor_error = discovery.connect_all(normalized)
+
+  if not monitors then
+    return nil, monitor_error
+  end
+
+  local states = {}
+  for i, monitor in ipairs(monitors) do
+    states[i] = build_state(monitor, normalized)
+  end
+
+  return states
+end
+
 function manager.refresh(state)
   if type(state) ~= "table"
     or type(state.monitor) ~= "table"

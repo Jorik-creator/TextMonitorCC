@@ -26,19 +26,16 @@ alphabet.map = {
 }
 
 -- Replace all Cyrillic characters in text with their escape sequences.
+-- Uses UTF-8 aware matching: each multi-byte sequence is captured as one unit.
 -- Non-mapped characters are left unchanged.
 function alphabet.replace(text)
   if type(text) ~= "string" then
     return text
   end
 
-  local result = {}
-  for i = 1, #text do
-    local char = text:sub(i, i)
-    result[i] = alphabet.map[char] or char
-  end
-
-  return table.concat(result)
+  return (text:gsub("[\194-\244][\128-\191]*", function(char)
+    return alphabet.map[char] or char
+  end))
 end
 
 return alphabet
